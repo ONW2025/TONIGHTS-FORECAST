@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dynamic City Temperatures with Draggable &amp; Editable Text Boxes</title>
+  <style>
+    /* GENERAL STYLES */
+    body {
+      font-family: Overpass Black, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #000;
+      /* Removed flex centering so container uses the true left margin */
+    }
+    
+    /* Fixed container with a resolution of 1620 x 780 and your background image */
+    .fixed-container {
+      position: relative;
+      width: 1620px;
+      height: 780px;
+      background-image: url('tonights forecast.png');
+      background-size: 100% 100%;
+      background-repeat: no-repeat;
+      background-position: center;
+      overflow: hidden;
+      /* Container starts at the document's true left */
+    }
+    
+    /* DATE HEADER – its position is stored in local storage */
+    #timestamp {
+      color: white;
+      font-size: 35px;
+      padding: 5px;
+      position: absolute;
+      left: 442px;
+      top: 51.4375px;
+      cursor: move;
+      z-index: 1000;
+      text-shadow:
+        2px 2px 4px rgba(0,0,0,0.5),
+        0 0 10px rgba(0,0,0,0.7),
+        0 0 20px rgba(0,0,0,0.7),
+        0 0 30px rgba(0,0,0,0.7);
+    }
+    /* DATE ADJUST BOX – hidden by default */
+    .date-adjust-box {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 8px;
+      border-radius: 5px;
+      font-size: 14px;
+      display: none;
+      z-index: 1100;
+    }
+    /* GLOBAL ADJUST CONTAINER (Draggable; uses cookies) */
+    #global-adjust-container {
+      margin: 30px;
+      background: rgba(255,255,255,0.8);
+      padding: 10px;
+      border-radius: 8px;
+      cursor: move;
+      position: absolute;
+      z-index: 1000;
+    }
+    .container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    .city {
+      padding: 10px;
+      border: 0;
+      border-radius: 5px;
+      background-color: transparent;
+      text-align: center;
+      user-select: none;
+      position: absolute;
+      cursor: move;
+      display: inline-block;
+    }
+    .city h3 {
+      margin: 0;
+      font-size: 22px;
+      color: #ffffff;
+      text-shadow:
+        2px 2px 4px rgba(0,0,0,0.5),
+        0 0 10px rgba(0,0,0,0.7),
+        0 0 20px rgba(0,0,0,0.7),
+        0 0 30px rgba(0,0,0,0.7);
+    }
+    .temperature {
+      font-size: 30px;
+      font-weight: bold;
+      color: #FFFF00;
+      margin-top: -5px;
+      text-shadow:
+        2px 2px 4px rgba(0,0,0,0.5),
+        0 0 10px rgba(255,255,0,0.7),
+        0 0 20px rgba(255,255,0,0.7),
+        0 0 30px rgba(255,255,0,0.7);
+    }
+    .temp-value {
+      font-size: 40px;
+      display: inline-block;
+      text-shadow:
+        2px 2px 4px rgba(0,0,0,0.5),
+        0 0 10px rgba(0,0,0,0.7),
+        0 0 20px rgba(0,0,0,0.7),
+        0 0 30px rgba(0,0,0,0.7);
+    }
+    .degree-symbol {
+      font-size: 30px;
+      margin-left: 5px;
+      position: relative;
+      top: -5px;
+      text-shadow:
+        2px 2px 4px rgba(0,0,0,0.5),
+        0 0 10px rgba(0,0,0,0.7),
+        0 0 20px rgba(0,0,0,0.7),
+        0 0 30px rgba(0,0,0,0.7);
+    }
+    /* The adjust button container is hidden by default and shown on hover */
+    .temp-controls {
+      position: absolute;
+      top: 50px;
+      left: 20px;
+      margin: 0;
+      padding: 5px;
+      cursor: move;
+      display: none;
+    }
+    .city:hover .temp-controls,
+    .temp-controls:hover {
+      display: inline-block;
+    }
+    /* WEATHER ICON BOXES (Draggable) */
+    .weather-icon-box {
+      width: 90px;
+      height: 90px;
+      position: absolute;
+      cursor: move;
+      border: 2px solid #fff;
+      border-radius: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: rgba(0,0,0,0.5);
+    }
+    .weather-icon {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .icon-options {
+      position: absolute;
+      background-color: rgba(255,255,255,0.8);
+      padding: 8px;
+      border-radius: 8px;
+      display: none;
+      flex-direction: column;
+      z-index: 20;
+    }
+    .weather-icon-box:hover .icon-options {
+      display: flex;
+    }
+    select {
+      margin-bottom: 6px;
+    }
+    /* CUSTOM TEXT BOXES – Draggable, Editable, with Position & Text Glow */
+    .custom-text-box {
+      position: absolute;
+      padding: 10px;
+      background-color: transparent;
+      width: 250px;
+      box-sizing: border-box;
+      cursor: move;
+      border: 0px solid #ccc;
+      border-radius: 5px;
+      z-index: 5;
+    }
+    .custom-text-box .text-content {
+      font-family: Overpass Black, sans-serif;
+      font-size: 16px;
+      color: #FFFFFF;
+      text-align: center;
+      user-select: text;
+      text-shadow: none;
+    }
+    .custom-text-box .text-box-controls {
+      display: none;
+      position: absolute;
+      bottom: 5px;
+      left: 5px;
+      right: 5px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 5px;
+      font-size: 12px;
+      border-radius: 4px;
+      z-index: 10;
+    }
+    .custom-text-box:hover .text-box-controls {
+      display: block;
+    }
+    .custom-text-box .text-box-controls input {
+      margin-right: 5px;
+    }
+    /* EDIT OVERLAY – appears when hovering over a custom text box */
+    .custom-text-box .edit-overlay {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 18px;
+      justify-content: center;
+      align-items: center;
+      border-radius: 5px;
+      cursor: pointer;
+      z-index: 15;
+    }
+    .custom-text-box:hover .edit-overlay {
+      display: flex;
+    }
+    /* TOOLTIP STYLES (for draggable elements) */
+    .tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.75);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 3px;
+      font-size: 12px;
+      white-space: nowrap;
+      pointer-events: none;
+      display: none;
+      z-index: 10000;
+    }
+    /* MODAL STYLES */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 100000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background-color: #fff;
+      color: #000;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+    }
+    .modal-content textarea {
+      width: 90%;
+      height: 100px;
+      margin-bottom: 10px;
+    }
+    .modal-content button {
+      margin: 5px;
+      padding: 8px 12px;
+      font-size: 16px;
+    }
+    /* ----------------- PASSWORD OVERLAY STYLES ----------------- */
+    /* The locked state will blur everything except the password overlay */
+    body.locked > :not(#passwordOverlay) {
+      filter: blur(5px);
+    }
+    #passwordOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100000; /* Make sure it's above everything */
+    }
+    #passwordModal {
+      background: #fff;
+      padding: 20px;
+      border-radius: 5px;
+      text-align: center;
+      max-width: 300px;
+      width: 80%;
+    }
+    #passwordModal input {
+      padding: 10px;
+      font-size: 16px;
+      width: 90%;
+      margin-bottom: 10px;
+    }
+    #passwordModal button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body class="locked">
+  <div class="fixed-container">
+    <!-- DATE HEADER (Draggable; position stored in local storage) -->
+    <h1 id="timestamp" style="left:442px; top:51.4375px;">Loading Date...</h1>
+    
+    <!-- DATE ADJUST BOX (appears on hover) -->
+    <div id="date-adjust-box" class="date-adjust-box">
+      <label>
+        Adjust Date (days):
+        <input type="number" id="date-offset" value="0">
+      </label>
+      <button id="apply-date-adjust">Apply Date Adjust</button>
+    </div>
+    
+    <!-- GLOBAL ADJUST CONTAINER (Draggable; uses cookies) -->
+    <div id="global-adjust-container">
+      <div>
+        <label for="global-temp-adjust">Global Temperature Adjust:</label>
+        <input type="number" id="global-temp-adjust" value="0" />
+        <button id="apply-global-adjust">Apply</button>
+      </div>
+      <div>
+        <label for="global-icon-size">Global Weather Icon Size (px):</label>
+        <input type="number" id="global-icon-size" value="50" />
+        <button id="apply-global-icon-size">Apply Icon Size</button>
+      </div>
+    </div>
+    
+    <!-- CUSTOM TEXT BOXES (Draggable, Editable, with Position & Text Glow) -->
+    <div class="custom-text-box" id="text-box-1" style="left:1321px; top:148px;">
+      <div class="text-content" id="text-content-1">There is no risk for thunderstorms today.</div>
+      <!-- Edit overlay; clicking this opens the modal -->
+      <div class="edit-overlay">Click to Edit</div>
+      <div class="text-box-controls">
+        Left: <input type="number" class="left-input" value="1425"> px 
+        Top: <input type="number" class="top-input" value="200"> px
+        <button class="apply-position">Apply</button>
+        Glow: <input type="color" class="glow-input" value="#000000">
+      </div>
+    </div>
+    
+    <div class="custom-text-box" id="text-box-2" style="left:1325px; top:305px;">
+      <div class="text-content" id="text-content-2">Winds 15-25MPH from the Southwest.</div>
+      <div class="edit-overlay">Click to Edit</div>
+      <div class="text-box-controls">
+        Left: <input type="number" class="left-input" value="1425"> px 
+        Top: <input type="number" class="top-input" value="371"> px
+        <button class="apply-position">Apply</button>
+        Glow: <input type="color" class="glow-input" value="#000000">
+      </div>
+    </div>
+    
+    <div class="custom-text-box" id="text-box-3" style="left:1324px; top:491px;">
+      <div class="text-content" id="text-content-3">Partly-Cloudy with a stout wind out of the Southwest. Warming into 50's in the Northwest and 60's in the Southern half of the state.</div>
+      <div class="edit-overlay">Click to Edit</div>
+      <div class="text-box-controls">
+        Left: <input type="number" class="left-input" value="1425"> px 
+        Top: <input type="number" class="top-input" value="565"> px
+        <button class="apply-position">Apply</button>
+        Glow: <input type="color" class="glow-input" value="#ffff00">
+      </div>
+    </div>
+    
+    <!-- CONTAINER FOR CITIES (Draggable) -->
+    <div class="container" id="cities-container"></div>
+    
+    <!-- WEATHER ICON BOXES (Draggable) -->
+    <div id="icon-boxes"></div>
+    
+    <!-- CREATED TIMESTAMP BOX (Draggable; no persistence for repositioning) -->
+    <div id="created-box" class="draggable-text-box" style="left:80px; top:743px; cursor: move; position: absolute; z-index: 1000; color: white;">
+      Created: <span id="created-timestamp"></span>
+    </div>
+    
+    <!-- TOOLTIP (for draggable elements) -->
+    <div id="tooltip" class="tooltip"></div>
+    
+    <!-- MODAL POP-UP FOR EDITING TEXT -->
+    <div id="modal" class="modal">
+      <div class="modal-content">
+        <h3>Edit Text</h3>
+        <textarea id="modal-input"></textarea><br>
+        <button id="modal-save">Save</button>
+        <button id="modal-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ==================== PASSWORD OVERLAY ==================== -->
+  <div id="passwordOverlay">
+    <div id="passwordModal">
+      <p>Please enter the password:</p>
+      <input type="password" id="passwordInput" placeholder="Password">
+      <button id="passwordSubmit">Submit</button>
+    </div>
+  </div>
+  
+  <!-- Include html2canvas from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
+  <!-- ========== SCRIPTS ========== -->
+  <script>
+    //////////////////////////////
+    // COOKIE HELPER FUNCTIONS (for global adjust container only)
+    function setCookie(cname, cvalue, exdays) {
+      const d = new Date();
+      d.setTime(d.getTime() + (exdays * 24 * 60 * 60 * 1000));
+      const expires = "expires=" + d.toUTCString();
+      document.cookie = cname + "=" + encodeURIComponent(cvalue) + ";" + expires + ";path=/";
+    }
+    function getCookie(cname) {
+      const name = cname + "=";
+      const decodedCookie = decodeURIComponent(document.cookie);
+      const ca = decodedCookie.split(';');
+      for (let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) === ' ') { c = c.substring(1); }
+        if (c.indexOf(name) === 0) {
+          return c.substring(name.length, c.length);
+        }
+      }
+      return "";
+    }
+    //////////////////////////////
+    
+    //////////////////////////////
+    // DATE HEADER – Use local storage for its position and allow date adjustment.
+    let currentDateOffset = 0;
+    function updateTimestamp(offsetDays) {
+      currentDateOffset = offsetDays;
+      const now = new Date();
+      now.setDate(now.getDate() + offsetDays);
+      const options = { weekday: 'long', month: 'long', day: 'numeric' };
+      const tsElem = document.getElementById('timestamp');
+      tsElem.innerText = now.toLocaleDateString('en-US', options);
+    }
+    window.addEventListener('load', () => {
+      updateTimestamp(currentDateOffset);
+      const tsElem = document.getElementById('timestamp');
+      const savedPos = localStorage.getItem('timestampPosition');
+      if (savedPos) {
+        try {
+          const pos = JSON.parse(savedPos);
+          tsElem.style.left = pos.left + 'px';
+          tsElem.style.top = pos.top + 'px';
+        } catch (e) { console.error(e); }
+      }
+    });
+    //////////////////////////////
+    
+    //////////////////////////////
+    // GLOBAL ADJUST CONTAINER POSITIONING (Draggable with cookie persistence)
+    const defaultGlobalAdjustLeft = 200;
+    const defaultGlobalAdjustTop = 857;
+    function loadGlobalAdjustPosition() {
+      const stored = getCookie('globalAdjustPosition');
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch (e) {
+          console.error('Error parsing globalAdjustPosition cookie:', e);
+        }
+      }
+      return { left: defaultGlobalAdjustLeft, top: defaultGlobalAdjustTop };
+    }
+    function saveGlobalAdjustPosition(left, top) {
+      setCookie('globalAdjustPosition', JSON.stringify({ left, top }), 7300);
+    }
+    function setGlobalAdjustPosition() {
+      const container = document.getElementById('global-adjust-container');
+      const pos = loadGlobalAdjustPosition();
+      container.style.left = pos.left + 'px';
+      container.style.top = pos.top + 'px';
+    }
+    window.addEventListener('load', setGlobalAdjustPosition);
+    //////////////////////////////
+    
+    //////////////////////////////
+    // TOOLTIP FOR DRAGGABLE ELEMENTS
+    const tooltip = document.getElementById('tooltip');
+    function updateTooltip(el) {
+      const rect = el.getBoundingClientRect();
+      tooltip.textContent = "Left: " + (el.style.left || Math.round(rect.left) + "px") +
+                            ", Top: " + (el.style.top || Math.round(rect.top) + "px");
+      tooltip.style.left = (rect.right + 10) + "px";
+      tooltip.style.top = rect.top + "px";
+    }
+    //////////////////////////////
+    
+    //////////////////////////////
+    // Helper: Check if an element or any of its parents is contenteditable
+    function hasEditableParent(el) {
+      while (el) {
+        if (el.getAttribute && el.getAttribute("contenteditable") === "true") {
+          return true;
+        }
+        el = el.parentElement;
+      }
+      return false;
+    }
+    
+    // GENERIC DRAGGABLE FUNCTION
+    function makeDraggable(element) {
+      let isDragging = false, offsetX, offsetY;
+      element.addEventListener('mousedown', (e) => {
+        // Prevent drag if clicking on an interactive element inside (e.g. input, button)
+        const nonDraggableTags = ['INPUT', 'BUTTON', 'SELECT', 'OPTION', 'TEXTAREA'];
+        if (nonDraggableTags.includes(e.target.tagName)) return;
+        e.preventDefault();
+        isDragging = true;
+        offsetX = e.clientX - element.getBoundingClientRect().left;
+        offsetY = e.clientY - element.getBoundingClientRect().top;
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      });
+      function onMouseMove(e) {
+        if (isDragging) {
+          element.style.left = (e.clientX - offsetX) + 'px';
+          element.style.top = (e.clientY - offsetY) + 'px';
+          if (element.classList.contains("city") ||
+              element.classList.contains("weather-icon-box") ||
+              element.id === "timestamp") {
+            updateTooltip(element);
+          }
+        }
+      }
+      function onMouseUp(e) {
+        if (isDragging) {
+          isDragging = false;
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          if (element.id === 'global-adjust-container') {
+            saveGlobalAdjustPosition(parseInt(element.style.left, 10), parseInt(element.style.top, 10));
+          }
+          if (element.id === 'timestamp') {
+            localStorage.setItem('timestampPosition', JSON.stringify({
+              left: parseInt(element.style.left, 10),
+              top: parseInt(element.style.top, 10)
+            }));
+          }
+        }
+      }
+      if (element.classList.contains("city") ||
+          element.classList.contains("weather-icon-box") ||
+          element.id === "timestamp") {
+        element.addEventListener('mouseenter', () => {
+          updateTooltip(element);
+          tooltip.style.display = 'block';
+        });
+        element.addEventListener('mouseleave', () => {
+          tooltip.style.display = 'none';
+        });
+      }
+    }
+    // Make draggable elements.
+    makeDraggable(document.getElementById('timestamp'));
+    makeDraggable(document.getElementById('global-adjust-container'));
+    makeDraggable(document.getElementById('created-box'));
+    //////////////////////////////
+    
+    //////////////////////////////
+    // NEW FUNCTION: DRAGGABLE WITHIN PARENT
+    function makeDraggableWithinParent(element) {
+      let isDragging = false, offsetX, offsetY;
+      const parent = element.parentElement;
+      element.addEventListener('mousedown', (e) => {
+        const nonDraggableTags = ['INPUT', 'BUTTON', 'SELECT', 'OPTION', 'TEXTAREA'];
+        if (nonDraggableTags.includes(e.target.tagName)) return;
+        e.stopPropagation();
+        e.preventDefault();
+        isDragging = true;
+        offsetX = e.clientX - element.getBoundingClientRect().left;
+        offsetY = e.clientY - element.getBoundingClientRect().top;
+        
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      });
+      
+      function onMouseMove(e) {
+        if (isDragging) {
+          const parentRect = parent.getBoundingClientRect();
+          let newLeft = e.clientX - parentRect.left - offsetX;
+          let newTop = e.clientY - parentRect.top - offsetY;
+          element.style.left = newLeft + 'px';
+          element.style.top = newTop + 'px';
+        }
+      }
+      
+      function onMouseUp(e) {
+        if (isDragging) {
+          isDragging = false;
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+        }
+      }
+    }
+    //////////////////////////////
+    
+    // EXISTING FUNCTIONALITY (CITIES, ICONS, GLOBAL ADJUSTMENTS)
+    const weatherIcons = [
+      'clear.png', 'cloudy.png', 'drizzle.png', 'foggy.png', 'freezing-rain.png',
+      'heavy-rain.png', 'heavy-snow.png', 'mostly clear.png', 'mostly-cloudy.png', 'partly-cloudy.png',
+      'partly clear.png', 'rain.png', 'severe-storms.png',
+      'snow.png', 'snow-showers.png', 'thunderstorm.png', 'windy.png',
+      'wintry-mix.png'
+    ];
+    const iconData = [
+      { id: 'icon-1', icon: 'clear.png', position: { x: 699, y: 544 } },
+      { id: 'icon-2', icon: 'cloudy.png', position: { x: 817, y: 251 } },
+      { id: 'icon-3', icon: 'rain.png', position: { x: 1046, y: 153 } },
+      { id: 'icon-4', icon: 'thunderstorm.png', position: { x: 1002, y: 363 } },
+      { id: 'icon-5', icon: 'snow.png', position: { x: 556, y: 152 } },
+      { id: 'icon-6', icon: 'foggy.png', position: { x: 361, y: 95 } },
+      { id: 'icon-7', icon: 'windy.png', position: { x: 471, y: 403 } },
+      { id: 'icon-8', icon: 'wintry-mix.png', position: { x: 419, y: 582 } },
+      { id: 'icon-9', icon: 'partly-cloudy.png', position: { x: 130, y: 434 } }
+    ];
+    const citiesData = [
+      { "name": "Toledo", "lat": 41.6528, "lon": -83.5379, "position": { "x": 466, "y": 97 } },
+      { "name": "Defiance", "lat": 41.2831, "lon": -84.3585, "position": { "x": 254, "y": 142 } },
+      { "name": "Findlay", "lat": 41.0405, "lon": -83.6491, "position": { "x": 438, "y": 180 } },
+      { "name": "Lima", "lat": 40.742, "lon": -84.105, "position": { "x": 311, "y": 229 } },
+      { "name": "Celina", "lat": 40.549, "lon": -84.5705, "position": { "x": 186, "y": 255 } },
+      { "name": "Bellefontaine", "lat": 40.3644, "lon": -83.7665, "position": { "x": 354, "y": 291 } },
+      { "name": "Springfield", "lat": 39.924, "lon": -83.8088, "position": { "x": 332, "y": 370 } },
+      { "name": "Dayton", "lat": 39.7589, "lon": -84.1916, "position": { "x": 231, "y": 399 } },
+      { "name": "Wilmington", "lat": 39.4487, "lon": -83.8113, "position": { "x": 311, "y": 475 } },
+      { "name": "Cincinnati", "lat": 39.1031, "lon": -84.5120, "position": { "x": 74, "y": 531 } },
+      { "name": "Sandusky", "lat": 41.4510, "lon": -82.6982, "position": { "x": 651, "y": 129 } },
+      { "name": "Mansfield", "lat": 40.7584, "lon": -82.5185, "position": { "x": 690, "y": 218 } },
+      { "name": "Columbus", "lat": 39.9612, "lon": -82.9988, "position": { "x": 558, "y": 364 } },
+      { "name": "Chillicothe", "lat": 39.3333, "lon": -82.9821, "position": { "x": 555, "y": 494 } },
+      { "name": "Portsmouth", "lat": 38.7331, "lon": -82.9936, "position": { "x": 542, "y": 631 } },
+      { "name": "Cleveland", "lat": 41.4993, "lon": -81.6944, "position": { "x": 878, "y": 114 } },
+      { "name": "Akron", "lat": 41.0814, "lon": -81.519, "position": { "x": 948, "y": 180 } },
+      { "name": "New Philadelphia", "lat": 40.364, "lon": -81.4417, "position": { "x": 937, "y": 272 } },
+      { "name": "Newark", "lat": 40.0582, "lon": -82.4013, "position": { "x": 724, "y": 349 } },
+      { "name": "Zanesville", "lat": 39.9408, "lon": -82.0137, "position": { "x": 840, "y": 371 } },
+      { "name": "Logan", "lat": 39.5326, "lon": -82.4105, "position": { "x": 753, "y": 451 } },
+      { "name": "Athens", "lat": 39.324, "lon": -82.1012, "position": { "x": 841, "y": 499 } },
+      { "name": "Gallipolis", "lat": 38.8112, "lon": -82.2084, "position": { "x": 804, "y": 630 } },
+      { "name": "Marietta", "lat": 39.4192, "lon": -81.454, "position": { "x": 1022, "y": 468 } },
+      { "name": "Youngstown", "lat": 41.0998, "lon": -80.6495, "position": { "x": 1137, "y": 174 } },
+      { "name": "Ashtabula", "lat": 41.8657, "lon": -80.7847, "position": { "x": 1071, "y": 73 } },
+      { "name": "St. Clairsville", "lat": 40.0737, "lon": -80.8768, "position": { "x": 1127, "y": 337 } },
+      { "name": "Marion", "lat": 40.5887, "lon": -83.1285, "position": { "x": 563, "y": 250 } },
+      { "name": "Georgetown", "lat": 38.8645, "lon": -83.9041, "position": { "x": 239, "y": 606 } }
+    ];
+    
+    // Updated fetchTemperature function to get tonight's low temperature forecast.
+    async function fetchTemperature(lat, lon) {
+      try {
+        const pointResponse = await fetch(`https://api.weather.gov/points/${lat},${lon}`, {
+          headers: { "User-Agent": "MyWeatherApp/1.0 (your-email@example.com)" }
+        });
+        if (!pointResponse.ok) {
+          console.error("Error fetching point data:", pointResponse.statusText);
+          return 'N/A';
+        }
+        const data = await pointResponse.json();
+        if (!data.properties || !data.properties.forecast) {
+          console.error("Forecast URL not found for", lat, lon);
+          return 'N/A';
+        }
+        const forecastUrl = data.properties.forecast;
+        const forecastResponse = await fetch(forecastUrl, {
+          headers: { "User-Agent": "MyWeatherApp/1.0 (your-email@example.com)" }
+        });
+        if (!forecastResponse.ok) {
+          console.error("Error fetching forecast data:", forecastResponse.statusText);
+          return 'N/A';
+        }
+        const forecastData = await forecastResponse.json();
+        if (!forecastData.properties || !forecastData.properties.periods || forecastData.properties.periods.length === 0) {
+          console.error("Forecast periods not available.");
+          return 'N/A';
+        }
+        
+        const today = new Date();
+        const todayDateString = today.toISOString().split('T')[0];
+        
+        // Look for tonight's forecast period: same date but not daytime.
+        let period = forecastData.properties.periods.find(p =>
+          p.startTime.startsWith(todayDateString) && !p.isDaytime
+        );
+        
+        // Fallback: if not found, try to find any period with "night" in the name.
+        if (!period) {
+          period = forecastData.properties.periods.find(p =>
+            p.name.toLowerCase().includes("night")
+          );
+        }
+        
+        return (period && period.temperature !== undefined) ? period.temperature : 'N/A';
+      } catch (error) {
+        console.error("Error fetching weather data:", error);
+        return 'N/A';
+      }
+    }
+    
+    async function displayCities() {
+      const container = document.getElementById('cities-container');
+      for (const city of citiesData) {
+        const cityDiv = document.createElement('div');
+        cityDiv.classList.add('city');
+        cityDiv.style.left = city.position.x + 'px';
+        cityDiv.style.top = city.position.y + 'px';
+        cityDiv.innerHTML = `
+  <h3>${city.name}</h3>
+  <div class="temperature">
+    <span class="temp-value">Loading...</span><span class="degree-symbol">&deg;</span>
+  </div>
+  <div class="temp-controls" style="position:absolute; top:50px; left:20px;">
+    <button class="temp-adjust">Adjust</button>
+  </div>
+`;
+        container.appendChild(cityDiv);
+        makeDraggable(cityDiv);
+        
+        // Make the temp-controls draggable within the city container.
+        const tempControls = cityDiv.querySelector('.temp-controls');
+        makeDraggableWithinParent(tempControls);
+    
+        cityDiv.querySelector('.temp-adjust').addEventListener('click', function(e) {
+          e.stopPropagation();
+          const currentTemp = cityDiv.querySelector('.temp-value').innerText;
+          let newTemp = prompt(`Enter new temperature for ${city.name}:`, currentTemp);
+          if (newTemp !== null && !isNaN(parseFloat(newTemp))) {
+            cityDiv.querySelector('.temp-value').innerText = parseFloat(newTemp);
+          } else if (newTemp !== null) {
+            alert("Please enter a valid number.");
+          }
+        });
+    
+        const temperature = await fetchTemperature(city.lat, city.lon);
+        cityDiv.querySelector('.temp-value').innerText = temperature;
+      }
+    }
+    
+    async function displayIcons() {
+      const iconContainer = document.getElementById('icon-boxes');
+      iconData.forEach(iconEntry => {
+        const iconBox = document.createElement('div');
+        iconBox.classList.add('weather-icon-box');
+        iconBox.setAttribute('data-id', iconEntry.id);
+        iconBox.style.top = iconEntry.position.y + 'px';
+        iconBox.style.left = iconEntry.position.x + 'px';
+        const sortedIcons = weatherIcons.slice().sort((a, b) => a.localeCompare(b));
+        iconBox.innerHTML = `
+          <img src="${iconEntry.icon}" class="weather-icon">
+          <div class="icon-options">
+            <label>Change Icon:</label>
+            <select class="icon-dropdown" data-icon-id="${iconEntry.id}">
+              ${sortedIcons.map(icon => `<option value="${icon}" ${iconEntry.icon === icon ? 'selected' : ''}>${icon.split('.')[0]}</option>`).join('')}
+            </select>
+          </div>
+        `;
+        iconBox.querySelector('.icon-dropdown').addEventListener('change', (event) => {
+          const selectedIcon = event.target.value;
+          const iconImg = iconBox.querySelector('img');
+          iconImg.src = selectedIcon;
+        });
+        iconContainer.appendChild(iconBox);
+        makeDraggable(iconBox);
+      });
+    }
+    
+    document.getElementById('apply-global-adjust').addEventListener('click', function() {
+      const adjustment = parseFloat(document.getElementById('global-temp-adjust').value);
+      const cityElements = document.querySelectorAll('.city');
+      cityElements.forEach(city => {
+        const tempSpan = city.querySelector('.temp-value');
+        let currentTemp = parseFloat(tempSpan.innerText);
+        if (!isNaN(currentTemp)) {
+          tempSpan.innerText = currentTemp + adjustment;
+        }
+      });
+    });
+    
+    document.getElementById('apply-global-icon-size').addEventListener('click', function() {
+      const newSize = parseInt(document.getElementById('global-icon-size').value, 10);
+      if (newSize > 0) {
+        document.querySelectorAll('.weather-icon-box').forEach(box => {
+          box.style.width = newSize + 'px';
+          box.style.height = newSize + 'px';
+        });
+      } else {
+        alert("Please enter a valid icon size (a positive number).");
+      }
+    });
+    
+    // Initialize displays.
+    displayIcons();
+    displayCities();
+    
+    // Make draggable elements for timestamp, global adjust container, and created box.
+    makeDraggable(document.getElementById('timestamp'));
+    makeDraggable(document.getElementById('global-adjust-container'));
+    makeDraggable(document.getElementById('created-box'));
+    
+    //////////////////////////////
+    // Persistent Editing for Custom Text Boxes
+    window.addEventListener('load', function() {
+      const textBoxes = document.querySelectorAll('.custom-text-box .text-content');
+      textBoxes.forEach(el => {
+        const saved = localStorage.getItem(el.id);
+        if (saved) {
+          el.innerText = saved;
+        }
+        el.addEventListener('keydown', function(e) {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            el.blur();
+          }
+        });
+      });
+      document.querySelectorAll('.custom-text-box').forEach(box => {
+        const leftInput = box.querySelector('.left-input');
+        const topInput = box.querySelector('.top-input');
+        const posBtn = box.querySelector('.apply-position');
+        posBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          box.style.left = leftInput.value + 'px';
+          box.style.top = topInput.value + 'px';
+        });
+        box.addEventListener('mouseup', function(e) {
+          leftInput.value = parseInt(box.style.left) || 0;
+          topInput.value = parseInt(box.style.top) || 0;
+        });
+        const glowInput = box.querySelector('.glow-input');
+        const textElem = box.querySelector('.text-content');
+        textElem.style.textShadow = `0 0 10px ${glowInput.value}, 0 0 20px ${glowInput.value}`;
+        makeDraggable(box);
+      });
+      setCreatedTimestamp();
+    });
+    
+    //////////////////////////////
+    // MODAL POP-UP EDITING FOR CUSTOM TEXT BOXES
+    let currentTextElem = null;
+    const modal = document.getElementById('modal');
+    const modalInput = document.getElementById('modal-input');
+    const modalSave = document.getElementById('modal-save');
+    const modalCancel = document.getElementById('modal-cancel');
+    
+    document.querySelectorAll('.custom-text-box .edit-overlay').forEach(overlay => {
+      overlay.addEventListener('click', function(e) {
+        e.stopPropagation();
+        currentTextElem = this.parentElement.querySelector('.text-content');
+        modalInput.value = currentTextElem.innerText;
+        modal.style.display = 'flex';
+      });
+    });
+    
+    modalSave.addEventListener('click', function() {
+      if (currentTextElem) {
+        currentTextElem.innerText = modalInput.value;
+        localStorage.setItem(currentTextElem.id, modalInput.value);
+      }
+      modal.style.display = 'none';
+    });
+    
+    modalCancel.addEventListener('click', function() {
+      modal.style.display = 'none';
+    });
+    
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        modal.style.display = 'none';
+      }
+    });
+    
+    //////////////////////////////
+    // SET CREATED TIMESTAMP
+    function setCreatedTimestamp() {
+      const createdElem = document.getElementById('created-timestamp');
+      const now = new Date();
+      const month = (now.getMonth() + 1).toString().padStart(2, '0');
+      const day = now.getDate().toString().padStart(2, '0');
+      const year = now.getFullYear().toString().slice(-2);
+      let hours = now.getHours();
+      const minutes = now.getMinutes().toString().padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      if (hours === 0) hours = 12;
+      hours = hours.toString().padStart(2, '0');
+      createdElem.textContent = `${month}/${day}/${year} ${hours}:${minutes} ${ampm}`;
+    }
+    
+    //////////////////////////////
+    // DATE ADJUST BOX FUNCTIONALITY
+    const dateAdjustBox = document.getElementById('date-adjust-box');
+    const timestampElem = document.getElementById('timestamp');
+    const applyDateAdjustBtn = document.getElementById('apply-date-adjust');
+    const dateOffsetInput = document.getElementById('date-offset');
+    
+    function showDateAdjustBox() {
+      const rect = timestampElem.getBoundingClientRect();
+      dateAdjustBox.style.left = rect.left + "px";
+      dateAdjustBox.style.top = rect.bottom + 5 + "px";
+      dateAdjustBox.style.display = "block";
+    }
+    function hideDateAdjustBox() {
+      dateAdjustBox.style.display = "none";
+    }
+    
+    timestampElem.addEventListener('mouseenter', showDateAdjustBox);
+    timestampElem.addEventListener('mouseleave', () => {
+      setTimeout(() => {
+        if (!dateAdjustBox.matches(':hover')) hideDateAdjustBox();
+      }, 200);
+    });
+    dateAdjustBox.addEventListener('mouseenter', showDateAdjustBox);
+    dateAdjustBox.addEventListener('mouseleave', hideDateAdjustBox);
+    
+    applyDateAdjustBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const offset = parseInt(dateOffsetInput.value, 10);
+      if (!isNaN(offset)) {
+        updateTimestamp(offset);
+      } else {
+        alert("Please enter a valid number for the date offset.");
+      }
+    });
+    
+    // Right-click (contextmenu) event to capture the fixed container and save it as an image.
+    document.querySelector('.fixed-container').addEventListener('contextmenu', function(e) {
+      e.preventDefault(); // Prevent the default context menu
+      html2canvas(this).then(function(canvas) {
+        const dataURL = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.href = dataURL;
+        link.download = "weather_display.png";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+    });
+  </script>
+  
+  <script>
+    //////////////////////////////
+    // PASSWORD FUNCTIONALITY
+    // Option to disable the password check during development
+    const disablePassword = false; // Set to true to bypass password protection
+
+    // Simple hash function for basic obfuscation (not secure)
+    function simpleHash(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0; // Convert to 32bit integer
+      }
+      return hash;
+    }
+    
+    // Split the password string into parts for extra obfuscation
+    const parts = ["Bel", "park", "#2025!"];
+    const correctHash = simpleHash(parts.join(""));
+    console.log("Correct hash for password:", correctHash);
+    
+    if (disablePassword) {
+      // If disabled, immediately unlock the page.
+      document.body.classList.remove('locked');
+      document.getElementById('passwordOverlay').style.display = 'none';
+    } else {
+      document.getElementById('passwordSubmit').addEventListener('click', function() {
+        const passwordInput = document.getElementById('passwordInput');
+        const inputHash = simpleHash(passwordInput.value);
+        console.log("Input hash:", inputHash);
+        if (inputHash === correctHash) {
+          document.body.classList.remove('locked');
+          document.getElementById('passwordOverlay').style.display = 'none';
+        } else {
+          alert('Incorrect password. Please try again.');
+          passwordInput.value = '';
+        }
+      });
+    }
+  </script>
+</body>
+</html>
